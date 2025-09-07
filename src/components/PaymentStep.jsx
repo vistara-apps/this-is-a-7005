@@ -5,31 +5,66 @@ import { usePaymentContext } from '../hooks/usePaymentContext';
 const PaymentStep = ({ config, onBack, onPaymentSuccess }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('crypto');
-  const { createSession } = usePaymentContext();
+  const { createPaymentIntent, deployToken } = usePaymentContext();
 
   const handleCryptoPayment = async () => {
     setIsProcessing(true);
     try {
-      await createSession();
-      // Simulate deployment delay
-      setTimeout(() => {
-        setIsProcessing(false);
-        onPaymentSuccess();
-      }, 3000);
+      // Create payment intent
+      const paymentResult = await createPaymentIntent(config);
+      
+      // For crypto payments, we'll simulate the payment process
+      // In a real implementation, this would integrate with a crypto payment processor
+      
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Trigger deployment
+      const deploymentResult = await deployToken(paymentResult.deploymentId);
+      
+      setIsProcessing(false);
+      onPaymentSuccess({
+        ...deploymentResult.deployment,
+        tokenName: config.name,
+        tokenSymbol: config.symbol,
+        totalSupply: config.totalSupply,
+        decimals: config.decimals
+      });
     } catch (error) {
       console.error('Payment failed:', error);
       setIsProcessing(false);
-      alert('Payment failed. Please try again.');
+      alert(`Payment failed: ${error.message}`);
     }
   };
 
-  const handleStripePayment = () => {
+  const handleStripePayment = async () => {
     setIsProcessing(true);
-    // Simulate Stripe payment processing
-    setTimeout(() => {
+    try {
+      // Create payment intent
+      const paymentResult = await createPaymentIntent(config);
+      
+      // In a real implementation, this would redirect to Stripe Checkout
+      // or use Stripe Elements for card processing
+      
+      // For demo purposes, simulate successful payment
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Trigger deployment
+      const deploymentResult = await deployToken(paymentResult.deploymentId);
+      
       setIsProcessing(false);
-      onPaymentSuccess();
-    }, 2000);
+      onPaymentSuccess({
+        ...deploymentResult.deployment,
+        tokenName: config.name,
+        tokenSymbol: config.symbol,
+        totalSupply: config.totalSupply,
+        decimals: config.decimals
+      });
+    } catch (error) {
+      console.error('Payment failed:', error);
+      setIsProcessing(false);
+      alert(`Payment failed: ${error.message}`);
+    }
   };
 
   if (isProcessing) {

@@ -1,34 +1,82 @@
-import { useWalletClient } from "wagmi";
+import { useAccount } from "wagmi";
 import { useCallback } from "react";
 import axios from "axios";
-import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 export function usePaymentContext() {
-  const { data: walletClient, isError, isLoading } = useWalletClient();
+  const { address, isConnected } = useAccount();
 
-  const createSession = useCallback(async () => {
-    if (!walletClient || !walletClient.account) throw new Error("please connect your wallet");
-    if (isError) throw new Error("wallet not connected");
-    if (isLoading) throw new Error("wallet is loading");
+  const createPaymentIntent = useCallback(async (tokenConfig) => {
+    if (!isConnected || !address) {
+      throw new Error("Please connect your wallet");
+    }
     
-    const baseClient = axios.create({
-      baseURL: "https://payments.vistara.dev",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    
-    const apiClient = withPaymentInterceptor(baseClient, walletClient);
-    const response = await apiClient.post("/api/payment", { amount: "$25.00" });
-    const paymentResponse = response.config.headers["X-PAYMENT"];
-    
-    if (!paymentResponse) throw new Error("payment response is absent");
-    
-    const decoded = decodeXPaymentResponse(paymentResponse);
-    console.log(`decoded payment response: ${JSON.stringify(decoded)}`);
-    
-    return decoded;
-  }, [walletClient, isError, isLoading]);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/payment/create-intent`, {
+        tokenConfig,
+        userAddress: address
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Payment intent creation failed:', error);
+      throw new Error(error.response?.data?.message || 'Payment intent creation failed');
+    }
+  }, [address, isConnected]);
 
-  return { createSession };
+  const checkPaymentStatus = useCallback(async (sessionId) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/payment/status/${sessionId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Payment status check failed:', error);
+      throw new Error(error.response?.data?.message || 'Payment status check failed');
+    }
+  }, []);
+
+  const deployToken = useCallback(async (deploymentId) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/deployment/deploy`, {
+        deploymentId
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Token deployment failed:', error);
+      throw new Error(error.response?.data?.message || 'Token deployment failed');
+    }
+  }, []);
+
+  const checkDeploymentStatus = useCallback(async (deploymentId) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/deployment/status/${deploymentId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Deployment status check failed:', error);
+      throw new Error(error.response?.data?.message || 'Deployment status check failed');
+    }
+  }, []);
+
+  const getUserDeployments = useCallback(async () => {
+    if (!address) {
+      throw new Error("Wallet not connected");
+    }
+    
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/deployment/user/${address}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch user deployments:', error);
+      throw new Error(error.response?.data?.message || 'Failed to fetch deployments');
+    }
+  }, [address]);
+
+  return { 
+    createPaymentIntent,
+    checkPaymentStatus,
+    deployToken,
+    checkDeploymentStatus,
+    getUserDeployments
+  };
 }
